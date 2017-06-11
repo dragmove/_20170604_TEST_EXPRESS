@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>upload file</title>
+</head>
+<body>
+    <div id="wrap">
+        <h1>login</h1>
+
+        <form method="post" enctype="multipart/form-data" action="/process/photo">
+            <div>
+                <label>file</label>
+                <input type="file" name="photo" multiple>
+            </div>
+
+            <input type="submit" value="upload" name="submit">
+        </form>
+    </div>
+</body>
+</html>
