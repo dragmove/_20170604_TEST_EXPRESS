@@ -16,7 +16,47 @@ var express = require('express'),
   multer = require('multer'),
   fs = require('fs'),
 
-  cors = require('cors');
+  cors = require('cors'),
+
+  MongoClient = require('mongodb').MongoClient,
+  database = null;
+
+var authUser = function(database, id, password, callback) {
+  console.log('called authUser');
+
+  var users = database.collection('users');
+
+  users.find({
+    "id": id,
+    "password": password
+
+  }).toArray(function(error, docs) {
+    if(error) {
+      callback(error, null);
+      return;
+    }
+
+    if(docs.length > 0) {
+      console.log('id, password :', id, password);
+      callback(null, docs);
+
+    } else {
+      console.log('can not find user');
+      callback(null, null);
+    }
+  })
+};
+
+function connectDB() {
+  var databaseUrl = 'mongodb://localhost:27017/local';
+
+  MongoClient.connect(databaseUrl, function(error, db) {
+    if(error) throw error;
+    console.log('connected database :', databaseUrl);
+
+    database = db;
+  });
+}
 
 app = express();
 
@@ -60,6 +100,37 @@ router.route('/process/login').post(function (req, res) {
   var paramId = req.body.id || req.query.id;
   var paramPassword = req.body.password || req.query.password;
 
+  if(database) {
+    authUser(database, paramId, paramPassword, function(error, docs) {
+      if(error) {
+        throw error;
+      }
+
+      if(docs) {
+        res.writeHead('200', {'Content-Type': 'text/html;charset=utf8'});
+        res.write('<h1>success login</h1>');
+        res.write('<div>param id : ' + paramId + '</div>');
+        res.write('<div>param password : ' + paramPassword + '</div>');
+        res.write('<div><a href="/login.html">retry login</a></div>');
+        res.end();
+
+      } else {
+        res.writeHead('200', {'Content-Type': 'text/html;charset=utf8'});
+        res.write('<h1>fail to login</h1>');
+        res.write('<div>reconfirm id, password</div>');
+        res.write('<div><a href="/login.html">retry login</a></div>');
+        res.end();
+      }
+    });
+
+  } else {
+    res.writeHead('200', {'Content-Type': 'text/html;charset=utf8'});
+    res.write('<h1>fail to connect database</h1>');
+    res.write('<div><a href="/process/login.html">go login page</a></div>');
+    res.end();
+  }
+
+  /*
   if (req.session.user) {
     res.redirect('/product.html');
 
@@ -77,6 +148,7 @@ router.route('/process/login').post(function (req, res) {
     res.write('<div><a href="/process/product">go product page</a></div>');
     res.end();
   }
+  */
 });
 
 router.route('/process/product').get(function (req, res) {
@@ -197,4 +269,6 @@ app.use(errorHandler);
 
 http.createServer(app).listen(app.get('port'), function () {
   console.log(app.get('port'));
+
+  connectDB();
 });
