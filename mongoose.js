@@ -18,64 +18,98 @@ var express = require('express'),
 
   cors = require('cors'),
 
-  MongoClient = require('mongodb').MongoClient,
-  database = null;
+  // MongoClient = require('mongodb').MongoClient,
+
+  mongoose = require('mongoose'),
+  database = null,
+  UserSchema,
+  UserModel;
 
 var authUser = function (database, id, password, callback) {
-  console.log('called authUser');
+  console.log('called authUser :', id);
 
-  var users = database.collection('users');
+  UserModel.find({
+    'id': id,
+    'password': password
 
-  users.find({
-    "id": id,
-    "password": password
-
-  }).toArray(function (error, docs) {
+  }, function (error, results) {
     if (error) {
       callback(error, null);
       return;
     }
 
-    if (docs.length > 0) {
-      console.log('id, password :', id, password);
-      callback(null, docs);
+    console.dir(results);
+
+    if (results.length > 0) {
+      console.log('found user :', id, password);
+      callback(null, results);
 
     } else {
       console.log('can not find user');
       callback(null, null);
     }
-  })
+  });
 };
 
 var addUser = function (database, id, password, name, callback) {
-  console.log('called addUser');
+  console.log('called addUser :', id, password);
 
-  var users = database.collection('users');
+  var user = new UserModel({
+    'id': id,
+    'password': password,
+    'name': name
+  });
 
-  users.insertMany([{"id": id, "password": password, "name": name}], function (error, result) {
-    if (error) {
+  user.save(function(error) {
+    if(error) {
       callback(error, null);
       return;
     }
 
-    if (result.insertedCount > 0) {
-      console.log('added user record :', result.insertedCount);
-    } else {
-      console.log('no added user record');
-    }
-
-    callback(null, result);
-  });
+    console.log('added user data');
+    callback(null, user);
+  })
 };
 
+/*
+ function connectDB() {
+ var databaseUrl = 'mongodb://localhost:27017/local';
+
+ MongoClient.connect(databaseUrl, function (error, db) {
+ if (error) throw error;
+ console.log('connected database :', databaseUrl);
+
+ database = db;
+ });
+ }
+ */
+
 function connectDB() {
+  console.log('try to connect dababase');
+
   var databaseUrl = 'mongodb://localhost:27017/local';
 
-  MongoClient.connect(databaseUrl, function (error, db) {
-    if (error) throw error;
-    console.log('connected database :', databaseUrl);
+  mongoose.Promise = global.Promise;
+  mongoose.connect(databaseUrl);
 
-    database = db;
+  database = mongoose.connection;
+
+  database.on('error', console.error.bind(console, 'mongoose connection error.'));
+
+  database.on('open', function () {
+    console.log('connected to database :', databaseUrl);
+
+    UserSchema = mongoose.Schema({
+      id: {type: String, required: true, unique: true},
+      name: String,
+      password: String
+    });
+
+    UserModel = mongoose.model('users', UserSchema);
+  });
+
+  database.on('disconnected', function () {
+    setInterval(connectDB, 5000);
   });
 }
 
@@ -179,13 +213,15 @@ router.route('/process/adduser').post(function (req, res) {
   var paramPassword = req.body.password || req.query.password;
   var paramName = req.body.name || req.query.name;
 
-  if(database) {
-    addUser(database, paramId, paramPassword, paramName, function(error, result) {
+  if (database) {
+    addUser(database, paramId, paramPassword, paramName, function (error, result) {
       if (error) {
         throw error;
       }
 
-      if(result && result.insertedCount > 0) {
+      console.log('addUser result :', result);
+
+      if (result) {
         console.dir(result);
 
         res.writeHead('200', {'Content-Type': 'text/html;charset=utf8'});
